@@ -27,7 +27,7 @@ solicitudes = [
 
 ]
 
-print("      FLOTA DISPONIBLE       ")
+print("       FLOTA DISPONIBLE       ")
 
 for vehiculo in vehiculos:
     print(vehiculo)
