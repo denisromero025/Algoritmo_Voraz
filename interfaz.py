@@ -1,306 +1,717 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from flota import crear_flota_inicial, TIPOS_VEHICULO
 from modelos import Solicitud
-from validaciones import validar_solicitud
+from flota import cargar_flota, TIPOS_VEHICULO
 from algoritmo_voraz import asignar_solicitudes_voraz
 
+from validaciones import (
+    validar_nombre,
+    validar_dias,
+    validar_presupuesto
+)
 
-class AplicacionAlquiler(tk.Tk):
 
-    COLOR_FONDO = "#F4F6F8"
-    COLOR_BARRA = "#1B4965"
-    COLOR_TEXTO_BARRA = "#FFFFFF"
+class AplicacionAlquiler:
 
-    def __init__(self):
-        super().__init__()
-        self.title("Sistema Inteligente de Alquiler de Autos - Algoritmo Voraz")
-        self.geometry("980x640")
-        self.minsize(900, 600)
-        self.configure(bg=self.COLOR_FONDO)
+    # ==========================
+    # PALETA DE COLORES
+    # ==========================
+    COLOR_FONDO = "#EEF2F7"
+    COLOR_FONDO_TARJETA = "#FFFFFF"
+    COLOR_HEADER = "#1F4E79"
+    COLOR_HEADER_TEXTO = "#FFFFFF"
+    COLOR_ACENTO = "#2E86C1"
+    COLOR_EXITO = "#1E8449"
+    COLOR_PELIGRO = "#C0392B"
+    COLOR_ADVERTENCIA = "#B9770E"
+    COLOR_TEXTO = "#1C2833"
+    COLOR_BORDE = "#D5DBDB"
+    COLOR_FILA_PAR = "#F4F8FB"
+    COLOR_FILA_IMPAR = "#FFFFFF"
 
-        self.vehiculos = crear_flota_inicial()
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Sistema de Alquiler de Vehículos ")
+        self.root.geometry("1500x800")
+        self.root.configure(bg=self.COLOR_FONDO)
+
+        # ==========================
+        # DATOS
+        # ==========================
+        self.vehiculos = cargar_flota()
         self.solicitudes = []
+        self.tiempo = 0
+        self.ingreso_total = 0
+        self.total_devuelto = 0
+        self.conflictos_resueltos = 0
+        self.ingreso_perdido = 0
 
-        self._construir_estilos()
-        self._construir_encabezado()
-        self._construir_pestañas()
+        # ==========================
+        # ESTILOS
+        # ==========================
+        self.configurar_estilos()
 
-        self.refrescar_flota()
-        self.refrescar_solicitudes()
+        # ==========================
+        # INTERFAZ
+        # ==========================
+        self.crear_interfaz()
 
-    # ------------------------------------------------------------------ UI --
-    def _construir_estilos(self):
-        estilo = ttk.Style(self)
-        try:
-            estilo.theme_use("clam")
-        except tk.TclError:
-            pass
-        estilo.configure("TNotebook", background=self.COLOR_FONDO)
-        estilo.configure("TNotebook.Tab", padding=(16, 8), font=("Segoe UI", 10, "bold"))
-        estilo.configure("Treeview", rowheight=26, font=("Segoe UI", 10))
-        estilo.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"))
-        estilo.configure("Accent.TButton", font=("Segoe UI", 10, "bold"))
+    # =====================================================
+    # ESTILOS TTK
+    # =====================================================
 
-    def _construir_encabezado(self):
-        barra = tk.Frame(self, bg=self.COLOR_BARRA, height=64)
-        barra.pack(side="top", fill="x")
+    def configurar_estilos(self):
+        style = ttk.Style()
+        style.theme_use("clam")
 
-        tk.Label(
-            barra, text="🚗  Sistema Inteligente de Alquiler de Autos",
-            bg=self.COLOR_BARRA, fg=self.COLOR_TEXTO_BARRA,
-            font=("Segoe UI", 15, "bold")
-        ).pack(side="left", padx=18, pady=12)
+        # Notebook (pestañas)
+        style.configure(
+            "TNotebook",
+            background=self.COLOR_FONDO,
+            borderwidth=0
+        )
+        style.configure(
+            "TNotebook.Tab",
+            font=("Segoe UI", 11, "bold"),
+            padding=(20, 10),
+            background="#D6E4F0",
+            foreground=self.COLOR_TEXTO
+        )
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", self.COLOR_ACENTO)],
+            foreground=[("selected", "#FFFFFF")]
+        )
 
-        tk.Button(
-            barra, text="⟲ Restablecer sistema", command=self.restablecer_sistema,
-            bg="#E63946", fg="white", relief="flat", font=("Segoe UI", 10, "bold"),
-            activebackground="#C1121F", activeforeground="white", padx=12, pady=6,
-            cursor="hand2"
-        ).pack(side="right", padx=18)
+        # Botones
+        style.configure(
+            "Primario.TButton",
+            font=("Segoe UI", 10, "bold"),
+            foreground="#FFFFFF",
+            background=self.COLOR_ACENTO,
+            padding=8,
+            borderwidth=0
+        )
+        style.map(
+            "Primario.TButton",
+            background=[("active", "#1B4F72")]
+        )
 
-    def _construir_pestañas(self):
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
+        style.configure(
+            "Exito.TButton",
+            font=("Segoe UI", 10, "bold"),
+            foreground="#FFFFFF",
+            background=self.COLOR_EXITO,
+            padding=8,
+            borderwidth=0
+        )
+        style.map(
+            "Exito.TButton",
+            background=[("active", "#145A32")]
+        )
+
+        style.configure(
+            "Peligro.TButton",
+            font=("Segoe UI", 10, "bold"),
+            foreground="#FFFFFF",
+            background=self.COLOR_PELIGRO,
+            padding=8,
+            borderwidth=0
+        )
+        style.map(
+            "Peligro.TButton",
+            background=[("active", "#922B21")]
+        )
+
+        # Treeview
+        style.configure(
+            "Treeview",
+            font=("Segoe UI", 10),
+            rowheight=28,
+            background=self.COLOR_FONDO_TARJETA,
+            fieldbackground=self.COLOR_FONDO_TARJETA,
+            foreground=self.COLOR_TEXTO,
+            borderwidth=0
+        )
+        style.configure(
+            "Treeview.Heading",
+            font=("Segoe UI", 10, "bold"),
+            background=self.COLOR_HEADER,
+            foreground="#FFFFFF",
+            padding=6
+        )
+        style.map(
+            "Treeview.Heading",
+            background=[("active", self.COLOR_ACENTO)]
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", self.COLOR_ACENTO)],
+            foreground=[("selected", "#FFFFFF")]
+        )
+
+        # Combobox y Entry
+        style.configure(
+            "TEntry",
+            padding=6
+        )
+        style.configure(
+            "TCombobox",
+            padding=6
+        )
+
+    # =====================================================
+    # ESTRUCTURA PRINCIPAL
+    # =====================================================
+
+    def crear_interfaz(self):
+        self.crear_header()
+
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True, padx=18, pady=(0, 15))
 
         self.tab_flota = tk.Frame(self.notebook, bg=self.COLOR_FONDO)
         self.tab_solicitudes = tk.Frame(self.notebook, bg=self.COLOR_FONDO)
-        self.tab_resultados = tk.Frame(self.notebook, bg=self.COLOR_FONDO)
+        self.tab_procesos = tk.Frame(self.notebook, bg=self.COLOR_FONDO)
 
-        self.notebook.add(self.tab_flota, text="  🚙  Flota de Vehículos  ")
-        self.notebook.add(self.tab_solicitudes, text="  📝  Solicitudes  ")
-        self.notebook.add(self.tab_resultados, text="  ⚙️  Procesar y Resultados  ")
+        self.notebook.add(self.tab_flota, text="🚗  Flota de Vehículos")
+        self.notebook.add(self.tab_solicitudes, text="📋  Solicitudes")
+        self.notebook.add(self.tab_procesos, text="📊  Procesos y Resultados")
 
-        self._construir_tab_flota()
-        self._construir_tab_solicitudes()
-        self._construir_tab_resultados()
+        self.crear_tab_flota()
+        self.crear_tab_solicitudes()
+        self.crear_tab_procesos()
 
-    # ------------------------------------------------------------ TAB FLOTA --
-    def _construir_tab_flota(self):
-        contenedor = self.tab_flota
+    def crear_header(self):
+        header = tk.Frame(self.root, bg=self.COLOR_HEADER, height=90)
+        header.pack(fill="x")
 
         tk.Label(
-            contenedor, text="Vehículos disponibles en la flota",
-            bg=self.COLOR_FONDO, font=("Segoe UI", 12, "bold")
-        ).pack(anchor="w", padx=14, pady=(14, 6))
+            header,
+            text="SISTEMA DE ALQUILER DE VEHÍCULOS",
+            font=("Segoe UI", 20, "bold"),
+            fg=self.COLOR_HEADER_TEXTO,
+            bg=self.COLOR_HEADER
+        ).pack(pady=(14, 0))
+
+    def crear_tarjeta(self, parent, titulo):
+        """Crea un contenedor tipo 'tarjeta' con borde suave y título coloreado."""
+        contenedor = tk.Frame(
+            parent, bg=self.COLOR_FONDO_TARJETA,
+            highlightbackground=self.COLOR_BORDE, highlightthickness=1
+        )
+        contenedor.pack(fill="both", expand=True, padx=18, pady=10)
+
+        titulo_lbl = tk.Label(
+            contenedor, text=titulo,
+            font=("Segoe UI", 12, "bold"),
+            fg=self.COLOR_HEADER, bg=self.COLOR_FONDO_TARJETA,
+            anchor="w"
+        )
+        titulo_lbl.pack(fill="x", padx=15, pady=(12, 5))
+
+        cuerpo = tk.Frame(contenedor, bg=self.COLOR_FONDO_TARJETA)
+        cuerpo.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+
+        return cuerpo
+
+    # =====================================================
+    # PESTAÑA 1: FLOTA DE VEHÍCULOS
+    # =====================================================
+
+    def crear_tab_flota(self):
+        cuerpo = self.crear_tarjeta(self.tab_flota, "Flota Registrada")
 
         columnas = ("id", "placa", "tipo", "modelo", "tarifa", "estado")
-        self.tree_flota = ttk.Treeview(contenedor, columns=columnas, show="headings", height=14)
+        self.tree_flota = ttk.Treeview(
+            cuerpo, columns=columnas, show="headings", height=18
+        )
+
         encabezados = {
             "id": "ID", "placa": "Placa", "tipo": "Tipo",
-            "modelo": "Modelo", "tarifa": "Tarifa/día (S/)", "estado": "Estado"
+            "modelo": "Modelo", "tarifa": "Tarifa/Día", "estado": "Estado"
         }
-        anchos = {"id": 60, "placa": 100, "tipo": 110, "modelo": 160, "tarifa": 130, "estado": 120}
+        anchos = {
+            "id": 50, "placa": 110, "tipo": 120,
+            "modelo": 220, "tarifa": 110, "estado": 130
+        }
+
         for col in columnas:
             self.tree_flota.heading(col, text=encabezados[col])
             self.tree_flota.column(col, width=anchos[col], anchor="center")
 
-        self.tree_flota.tag_configure("libre", foreground="#2A9D8F")
-        self.tree_flota.tag_configure("ocupado", foreground="#E63946")
-        self.tree_flota.pack(fill="both", expand=True, padx=14, pady=6)
+        self.tree_flota.tag_configure("par", background=self.COLOR_FILA_PAR)
+        self.tree_flota.tag_configure("impar", background=self.COLOR_FILA_IMPAR)
+        self.tree_flota.tag_configure("disponible", foreground=self.COLOR_EXITO)
+        self.tree_flota.tag_configure("ocupado", foreground=self.COLOR_PELIGRO)
 
-        self.lbl_resumen_flota = tk.Label(
-            contenedor, text="", bg=self.COLOR_FONDO, font=("Segoe UI", 10)
+        scrollbar = ttk.Scrollbar(
+            cuerpo, orient="vertical", command=self.tree_flota.yview
         )
-        self.lbl_resumen_flota.pack(anchor="w", padx=14, pady=(0, 10))
+        self.tree_flota.configure(yscrollcommand=scrollbar.set)
+        self.tree_flota.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        self.refrescar_flota()
 
     def refrescar_flota(self):
         self.tree_flota.delete(*self.tree_flota.get_children())
-        for v in self.vehiculos:
-            estado = "Disponible" if v.disponible else "Asignado"
-            tag = "libre" if v.disponible else "ocupado"
+        for i, v in enumerate(self.vehiculos):
+            estado = "Disponible" if v.disponible else "Ocupado"
+            fila_tag = "par" if i % 2 == 0 else "impar"
+            estado_tag = "disponible" if v.disponible else "ocupado"
             self.tree_flota.insert(
-                "", "end",
-                values=(v.id_vehiculo, v.placa, v.tipo, v.modelo, f"{v.tarifa_diaria:.2f}", estado),
-                tags=(tag,)
+                "", tk.END,
+                values=(v.id, v.placa, v.tipo, v.modelo,
+                        f"S/ {v.tarifa:.2f}", estado),
+                tags=(fila_tag, estado_tag)
             )
-        disponibles = sum(1 for v in self.vehiculos if v.disponible)
-        self.lbl_resumen_flota.config(
-            text=f"Total: {len(self.vehiculos)}  |  Disponibles: {disponibles}  |  Asignados: {len(self.vehiculos) - disponibles}"
-        )
 
-    # ------------------------------------------------------ TAB SOLICITUDES --
-    def _construir_tab_solicitudes(self):
-        contenedor = self.tab_solicitudes
+    # =====================================================
+    # PESTAÑA 2: SOLICITUDES
+    # =====================================================
 
-        panel_form = tk.LabelFrame(
-            contenedor, text="Registrar nueva solicitud", bg=self.COLOR_FONDO,
-            font=("Segoe UI", 10, "bold"), padx=14, pady=12
-        )
-        panel_form.pack(fill="x", padx=14, pady=(14, 8))
+    def crear_tab_solicitudes(self):
+        self.crear_formulario(self.tab_solicitudes)
+        self.crear_tabla_solicitudes(self.tab_solicitudes)
 
-        tk.Label(panel_form, text="Nombre del cliente:", bg=self.COLOR_FONDO).grid(row=0, column=0, sticky="w", pady=4)
-        self.entry_cliente = ttk.Entry(panel_form, width=28)
-        self.entry_cliente.grid(row=0, column=1, padx=8, pady=4)
+    def crear_formulario(self, parent):
+        cuerpo = self.crear_tarjeta(parent, "Registro de Solicitudes")
 
-        tk.Label(panel_form, text="Tipo de vehículo:", bg=self.COLOR_FONDO).grid(row=0, column=2, sticky="w", pady=4)
-        self.combo_tipo = ttk.Combobox(panel_form, values=TIPOS_VEHICULO, state="readonly", width=15)
-        self.combo_tipo.grid(row=0, column=3, padx=8, pady=4)
-
-        tk.Label(panel_form, text="Monto ofrecido (S/):", bg=self.COLOR_FONDO).grid(row=0, column=4, sticky="w", pady=4)
-        self.entry_monto = ttk.Entry(panel_form, width=12)
-        self.entry_monto.grid(row=0, column=5, padx=8, pady=4)
-
-        ttk.Button(
-            panel_form, text="➕ Agregar solicitud", style="Accent.TButton",
-            command=self.registrar_solicitud
-        ).grid(row=0, column=6, padx=(14, 0))
+        fila = tk.Frame(cuerpo, bg=self.COLOR_FONDO_TARJETA)
+        fila.pack(fill="x", pady=5)
 
         tk.Label(
-            contenedor, text="Solicitudes registradas", bg=self.COLOR_FONDO, font=("Segoe UI", 12, "bold")
-        ).pack(anchor="w", padx=14, pady=(8, 6))
+            fila, text="Cliente:", bg=self.COLOR_FONDO_TARJETA,
+            font=("Segoe UI", 10, "bold"), fg=self.COLOR_TEXTO
+        ).grid(row=0, column=0, sticky="w", padx=(0, 6))
+        self.entry_cliente = ttk.Entry(fila, width=20)
+        self.entry_cliente.grid(row=0, column=1, padx=(0, 20))
 
-        columnas = ("id", "cliente", "tipo", "monto", "estado", "vehiculo")
-        self.tree_solicitudes = ttk.Treeview(contenedor, columns=columnas, show="headings", height=11)
+        tk.Label(
+            fila, text="Tipo:", bg=self.COLOR_FONDO_TARJETA,
+            font=("Segoe UI", 10, "bold"), fg=self.COLOR_TEXTO
+        ).grid(row=0, column=2, sticky="w", padx=(0, 6))
+        self.combo_tipo = ttk.Combobox(
+            fila, values=TIPOS_VEHICULO, state="readonly", width=14
+        )
+        self.combo_tipo.grid(row=0, column=3, padx=(0, 20))
+
+        tk.Label(
+            fila, text="Días:", bg=self.COLOR_FONDO_TARJETA,
+            font=("Segoe UI", 10, "bold"), fg=self.COLOR_TEXTO
+        ).grid(row=0, column=4, sticky="w", padx=(0, 6))
+        self.entry_dias = ttk.Entry(fila, width=8)
+        self.entry_dias.grid(row=0, column=5, padx=(0, 20))
+
+        tk.Label(
+            fila, text="Presupuesto/día (S/):", bg=self.COLOR_FONDO_TARJETA,
+            font=("Segoe UI", 10, "bold"), fg=self.COLOR_TEXTO
+        ).grid(row=0, column=6, sticky="w", padx=(0, 6))
+        self.entry_presupuesto = ttk.Entry(fila, width=12)
+        self.entry_presupuesto.grid(row=0, column=7, padx=(0, 20))
+
+        botones = tk.Frame(cuerpo, bg=self.COLOR_FONDO_TARJETA)
+        botones.pack(fill="x", pady=(15, 0))
+
+        ttk.Button(
+            botones, text="Registrar Solicitud", style="Primario.TButton",
+            command=self.registrar_solicitud
+        ).pack(side="left", padx=(0, 10))
+
+        ttk.Button(
+            botones, text="Procesar Solicitudes", style="Exito.TButton",
+            command=self.ir_a_procesos
+        ).pack(side="left", padx=(0, 10))
+
+        ttk.Button(
+            botones, text="Reiniciar", style="Peligro.TButton",
+            command=self.reiniciar
+        ).pack(side="left")
+
+    def crear_tabla_solicitudes(self, parent):
+        cuerpo = self.crear_tarjeta(parent, "Solicitudes Registradas")
+
+        columnas = ("id", "cliente", "tipo", "dias", "presupuesto", "estado")
+        self.tree_solicitudes = ttk.Treeview(
+            cuerpo, columns=columnas, show="headings", height=14
+        )
+
         encabezados = {
-            "id": "ID", "cliente": "Cliente", "tipo": "Tipo solicitado",
-            "monto": "Monto (S/)", "estado": "Estado", "vehiculo": "Vehículo asignado"
+            "id": "ID", "cliente": "Cliente", "tipo": "Tipo",
+            "dias": "Días", "presupuesto": "Presupuesto/Día", "estado": "Estado"
         }
-        anchos = {"id": 50, "cliente": 170, "tipo": 130, "monto": 100, "estado": 110, "vehiculo": 160}
+        anchos = {
+            "id": 60, "cliente": 220, "tipo": 130,
+            "dias": 70, "presupuesto": 140, "estado": 150
+        }
+
         for col in columnas:
             self.tree_solicitudes.heading(col, text=encabezados[col])
             self.tree_solicitudes.column(col, width=anchos[col], anchor="center")
-        self.tree_solicitudes.pack(fill="both", expand=True, padx=14, pady=6)
+
+        self.tree_solicitudes.tag_configure("par", background=self.COLOR_FILA_PAR)
+        self.tree_solicitudes.tag_configure("impar", background=self.COLOR_FILA_IMPAR)
+        self.tree_solicitudes.tag_configure("atendida", foreground=self.COLOR_EXITO)
+        self.tree_solicitudes.tag_configure("no_atendida", foreground=self.COLOR_PELIGRO)
+        self.tree_solicitudes.tag_configure("pendiente", foreground=self.COLOR_ADVERTENCIA)
+
+        scrollbar = ttk.Scrollbar(
+            cuerpo, orient="vertical", command=self.tree_solicitudes.yview
+        )
+        self.tree_solicitudes.configure(yscrollcommand=scrollbar.set)
+        self.tree_solicitudes.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+    # =====================================================
+    # REGISTRAR SOLICITUD (con validación previa de viabilidad)
+    # =====================================================
 
     def registrar_solicitud(self):
-        cliente = self.entry_cliente.get()
-        tipo = self.combo_tipo.get()
-        monto_texto = self.entry_monto.get()
+        cliente = self.entry_cliente.get().strip()
+        tipo = self.combo_tipo.get().strip()
+        dias = self.entry_dias.get().strip()
+        presupuesto = self.entry_presupuesto.get().strip()
 
-        es_valido, mensaje, monto = validar_solicitud(cliente, tipo, monto_texto)
-        if not es_valido:
-            messagebox.showwarning("Datos inválidos", mensaje)
+        valido, mensaje = validar_nombre(cliente)
+        if not valido:
+            messagebox.showwarning("Dato inválido", mensaje)
             return
 
-        nueva = Solicitud(cliente.strip(), tipo, monto)
-        self.solicitudes.append(nueva)
+        if tipo == "":
+            messagebox.showwarning("Dato inválido", "Seleccione un tipo de vehículo.")
+            return
 
-        self.entry_cliente.delete(0, "end")
+        valido, mensaje = validar_dias(dias)
+        if not valido:
+            messagebox.showwarning("Dato inválido", mensaje)
+            return
+
+        valido, mensaje = validar_presupuesto(presupuesto)
+        if not valido:
+            messagebox.showwarning("Dato inválido", mensaje)
+            return
+
+        presupuesto_num = float(presupuesto)
+
+        vehiculos_del_tipo = [
+            v for v in self.vehiculos if v.tipo == tipo
+        ]
+
+        if not vehiculos_del_tipo:
+            messagebox.showerror(
+                "Registro no permitido",
+                f"No contamos con unidades de tipo '{tipo}' en la flota.\n"
+                f"Por favor selecciona otra categoría de vehículo."
+            )
+            return
+
+        disponibles_del_tipo = [
+            v for v in vehiculos_del_tipo if v.disponible
+        ]
+
+        if not disponibles_del_tipo:
+            messagebox.showerror(
+                "Registro no permitido",
+                f"En este momento no hay unidades disponibles de tipo '{tipo}'.\n"
+                f"Todas están ocupadas. Intenta más tarde o elige otra categoría."
+            )
+            return
+
+        candidatos_validos = [
+            v for v in disponibles_del_tipo if v.tarifa <= presupuesto_num
+        ]
+
+        if not candidatos_validos:
+            tarifa_minima = min(v.tarifa for v in disponibles_del_tipo)
+            messagebox.showerror(
+                "Registro no permitido",
+                f"Tu presupuesto de S/ {presupuesto_num:.2f}/día no alcanza para "
+                f"la categoría '{tipo}'.\nEl vehículo más económico disponible "
+                f"cuesta S/ {tarifa_minima:.2f}/día.\n\n"
+                f"Ajusta tu presupuesto e inténtalo nuevamente."
+            )
+            return
+
+        solicitud = Solicitud(cliente, tipo, int(dias), presupuesto_num)
+        self.solicitudes.append(solicitud)
+
+        self.entry_cliente.delete(0, tk.END)
         self.combo_tipo.set("")
-        self.entry_monto.delete(0, "end")
+        self.entry_dias.delete(0, tk.END)
+        self.entry_presupuesto.delete(0, tk.END)
 
         self.refrescar_solicitudes()
-        messagebox.showinfo("Solicitud registrada", f"Solicitud #{nueva.id_solicitud} agregada correctamente.")
+        self.actualizar_estadisticas()
+
+        messagebox.showinfo("Registro", "Solicitud registrada correctamente.")
 
     def refrescar_solicitudes(self):
         self.tree_solicitudes.delete(*self.tree_solicitudes.get_children())
-        for s in self.solicitudes:
-            vehiculo_txt = s.vehiculo_asignado.placa if s.vehiculo_asignado else "-"
+        for i, s in enumerate(self.solicitudes):
+            fila_tag = "par" if i % 2 == 0 else "impar"
+            if s.estado == "Atendida":
+                estado_tag = "atendida"
+            elif s.estado == "No atendida":
+                estado_tag = "no_atendida"
+            else:
+                estado_tag = "pendiente"
+
             self.tree_solicitudes.insert(
-                "", "end",
-                values=(s.id_solicitud, s.cliente, s.tipo_solicitado,
-                        f"{s.monto_ofrecido:.2f}", s.estado, vehiculo_txt)
+                "", tk.END,
+                values=(
+                    s.id_solicitud, s.cliente, s.tipo_solicitado, s.dias,
+                    f"S/ {s.presupuesto_diario:.2f}", s.estado
+                ),
+                tags=(fila_tag, estado_tag)
             )
 
-    # -------------------------------------------------------- TAB RESULTADOS --
-    def _construir_tab_resultados(self):
-        contenedor = self.tab_resultados
+    # =====================================================
+    # NAVEGACIÓN A LA PESTAÑA DE PROCESOS
+    # =====================================================
 
-        panel_top = tk.Frame(contenedor, bg=self.COLOR_FONDO)
-        panel_top.pack(fill="x", padx=14, pady=14)
+    def ir_a_procesos(self):
+        if len(self.solicitudes) == 0:
+            messagebox.showwarning(
+                "Aviso",
+                "No existen solicitudes registradas para procesar."
+            )
+            return
+
+        self.notebook.select(self.tab_procesos)
+        self.procesar()
+
+    # =====================================================
+    # PESTAÑA 3: PROCESOS Y RESULTADOS
+    # =====================================================
+
+    def crear_tab_procesos(self):
+        top_frame = tk.Frame(self.tab_procesos, bg=self.COLOR_FONDO)
+        top_frame.pack(fill="x", padx=18, pady=(10, 0))
 
         ttk.Button(
-            panel_top, text="▶ Procesar solicitudes",
-            style="Accent.TButton", command=self.procesar_solicitudes
+            top_frame, text="⚙️  Realizar asignaciones ", style="Primario.TButton",
+            command=self.procesar
         ).pack(side="left")
 
-        self.lbl_tiempo = tk.Label(
-            panel_top, text="Tiempo de ejecución: --",
-            bg=self.COLOR_FONDO, font=("Segoe UI", 11, "bold"), fg=self.COLOR_BARRA
+        self.crear_tabla_asignaciones(self.tab_procesos)
+        self.crear_panel_estadisticas(self.tab_procesos)
+
+    def crear_tabla_asignaciones(self, parent):
+        cuerpo = self.crear_tarjeta(parent, "Asignaciones Realizadas")
+
+        columnas = ("cliente", "vehiculo", "tarifa", "dias", "total", "diferencia")
+        self.tree_asignaciones = ttk.Treeview(
+            cuerpo, columns=columnas, show="headings", height=9
         )
-        self.lbl_tiempo.pack(side="right")
 
-        panel_resultados = tk.Frame(contenedor, bg=self.COLOR_FONDO)
-        panel_resultados.pack(fill="both", expand=True, padx=14, pady=6)
-        panel_resultados.columnconfigure(0, weight=1)
-        panel_resultados.columnconfigure(1, weight=1)
-        panel_resultados.rowconfigure(1, weight=1)
+        encabezados = {
+            "cliente": "Cliente", "vehiculo": "Vehículo",
+            "tarifa": "Tarifa/Día", "dias": "Días",
+            "total": "Costo Total", "diferencia": "Diferencia devuelta (S/)"
+        }
+        anchos = {
+            "cliente": 160, "vehiculo": 240, "tarifa": 100,
+            "dias": 60, "total": 120, "diferencia": 180
+        }
 
-        tk.Label(panel_resultados, text="✅ Solicitudes atendidas", bg=self.COLOR_FONDO,
-                 font=("Segoe UI", 11, "bold"), fg="#2A9D8F").grid(row=0, column=0, sticky="w", pady=(0, 4))
-        tk.Label(panel_resultados, text="⛔ Solicitudes no atendidas", bg=self.COLOR_FONDO,
-                 font=("Segoe UI", 11, "bold"), fg="#E63946").grid(row=0, column=1, sticky="w", pady=(0, 4))
+        for col in columnas:
+            self.tree_asignaciones.heading(col, text=encabezados[col])
+            self.tree_asignaciones.column(col, width=anchos[col], anchor="center")
 
-        cols_ok = ("cliente", "tipo", "monto", "vehiculo", "tarifa")
-        self.tree_atendidas = ttk.Treeview(panel_resultados, columns=cols_ok, show="headings", height=12)
-        for col, txt, w in [("cliente", "Cliente", 130), ("tipo", "Tipo", 90),
-                             ("monto", "Monto ofrecido", 110), ("vehiculo", "Vehículo", 100),
-                             ("tarifa", "Tarifa/día", 90)]:
-            self.tree_atendidas.heading(col, text=txt)
-            self.tree_atendidas.column(col, width=w, anchor="center")
-        self.tree_atendidas.grid(row=1, column=0, sticky="nsew", padx=(0, 6))
+        self.tree_asignaciones.tag_configure("par", background=self.COLOR_FILA_PAR)
+        self.tree_asignaciones.tag_configure("impar", background=self.COLOR_FILA_IMPAR)
 
-        cols_no = ("cliente", "tipo", "monto", "motivo")
-        self.tree_no_atendidas = ttk.Treeview(panel_resultados, columns=cols_no, show="headings", height=12)
-        for col, txt, w in [("cliente", "Cliente", 130), ("tipo", "Tipo", 90),
-                             ("monto", "Monto ofrecido", 110), ("motivo", "Motivo", 220)]:
-            self.tree_no_atendidas.heading(col, text=txt)
-            self.tree_no_atendidas.column(col, width=w, anchor="center")
-        self.tree_no_atendidas.grid(row=1, column=1, sticky="nsew", padx=(6, 0))
-
-        self.lbl_resumen_resultado = tk.Label(
-            contenedor, text="", bg=self.COLOR_FONDO, font=("Segoe UI", 10, "italic")
+        scrollbar = ttk.Scrollbar(
+            cuerpo, orient="vertical", command=self.tree_asignaciones.yview
         )
-        self.lbl_resumen_resultado.pack(anchor="w", padx=14, pady=(8, 10))
+        self.tree_asignaciones.configure(yscrollcommand=scrollbar.set)
+        self.tree_asignaciones.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
 
-    def procesar_solicitudes(self):
-        pendientes = [s for s in self.solicitudes if s.estado == "Pendiente"]
-        if not pendientes:
-            messagebox.showinfo("Sin solicitudes", "No hay solicitudes pendientes por procesar.")
+    def crear_panel_estadisticas(self, parent):
+        cuerpo = self.crear_tarjeta(parent, "Estadísticas del Sistema")
+
+        self.frame_tarjetas = tk.Frame(cuerpo, bg=self.COLOR_FONDO_TARJETA)
+        self.frame_tarjetas.pack(fill="x", pady=(0, 10))
+
+        self.lbl_estadisticas = tk.Label(
+            cuerpo, justify="left", font=("Consolas", 10),
+            bg=self.COLOR_FONDO_TARJETA, fg=self.COLOR_TEXTO
+        )
+        self.lbl_estadisticas.pack(anchor="w")
+
+        self.actualizar_estadisticas()
+
+    def crear_mini_tarjeta(self, parent, titulo, valor, color):
+        tarjeta = tk.Frame(
+            parent, bg=color, width=200, height=70
+        )
+        tarjeta.pack(side="left", padx=6, pady=4)
+        tarjeta.pack_propagate(False)
+
+        tk.Label(
+            tarjeta, text=titulo, font=("Segoe UI", 9, "bold"),
+            bg=color, fg="#FFFFFF"
+        ).pack(anchor="w", padx=10, pady=(8, 0))
+
+        tk.Label(
+            tarjeta, text=valor, font=("Segoe UI", 14, "bold"),
+            bg=color, fg="#FFFFFF"
+        ).pack(anchor="w", padx=10)
+
+    def procesar(self):
+        if len(self.solicitudes) == 0:
+            messagebox.showwarning("Aviso", "No existen solicitudes registradas.")
             return
 
-        asignaciones, no_atendidas, tiempo = asignar_solicitudes_voraz(self.vehiculos, self.solicitudes)
+        try:
+            (asignaciones, no_atendidas, tiempo,
+             conflictos_resueltos, ingreso_perdido) = asignar_solicitudes_voraz(
+                self.vehiculos, self.solicitudes
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Error al procesar",
+                f"Ocurrió un error al ejecutar el algoritmo voraz:\n{error}"
+            )
+            return
 
-        self.tree_atendidas.delete(*self.tree_atendidas.get_children())
-        for solicitud, vehiculo in asignaciones:
-            self.tree_atendidas.insert(
-                "", "end",
-                values=(solicitud.cliente, solicitud.tipo_solicitado,
-                        f"{solicitud.monto_ofrecido:.2f}", vehiculo.placa, f"{vehiculo.tarifa_diaria:.2f}")
+        self.tiempo = tiempo
+        self.conflictos_resueltos = conflictos_resueltos
+        self.ingreso_perdido = ingreso_perdido
+
+        self.tree_asignaciones.delete(*self.tree_asignaciones.get_children())
+
+        self.ingreso_total = 0
+        self.total_devuelto = 0
+
+        mensajes_asignacion = []
+
+        for i, (solicitud, vehiculo, total, diferencia_total) in enumerate(asignaciones):
+            self.ingreso_total += total
+            self.total_devuelto += diferencia_total
+            fila_tag = "par" if i % 2 == 0 else "impar"
+
+            self.tree_asignaciones.insert(
+                "", tk.END,
+                values=(
+                    solicitud.cliente,
+                    f"{vehiculo.modelo} ({vehiculo.placa})",
+                    f"S/ {vehiculo.tarifa:.2f}",
+                    solicitud.dias,
+                    f"S/ {total:.2f}",
+                    f"S/ {diferencia_total:.2f}"
+                ),
+                tags=(fila_tag,)
             )
 
-        self.tree_no_atendidas.delete(*self.tree_no_atendidas.get_children())
+            if solicitud.diferencia_diaria > 0:
+                mensajes_asignacion.append(
+                    f"- {solicitud.cliente}: se le asignó un {vehiculo.modelo} a "
+                    f"S/ {vehiculo.tarifa:.2f}/día. Se le devuelven "
+                    f"S/ {solicitud.diferencia_diaria:.2f} diarios "
+                    f"(S/ {diferencia_total:.2f} en {solicitud.dias} días) "
+                    f"de su presupuesto original."
+                )
+
+        self.refrescar_flota()
+        self.refrescar_solicitudes()
+        self.actualizar_estadisticas()
+
+        resumen = (
+            f"Solicitudes atendidas: {len(asignaciones)}\n"
+            f"No atendidas: {len(no_atendidas)}\n"
+        )
+        if mensajes_asignacion:
+            resumen += "\n" + "\n".join(mensajes_asignacion)
+
+        messagebox.showinfo("Proceso finalizado", resumen)
+
         for solicitud in no_atendidas:
-            self.tree_no_atendidas.insert(
-                "", "end",
-                values=(solicitud.cliente, solicitud.tipo_solicitado,
-                        f"{solicitud.monto_ofrecido:.2f}",
-                        "No hay vehículos disponibles de este tipo")
-            )
+            if solicitud.motivo_no_atendida == "sin_stock":
+                messagebox.showinfo(
+                    "Sin stock",
+                    f"Lo sentimos {solicitud.cliente}, por el momento no "
+                    f"contamos con unidades de tipo '{solicitud.tipo_solicitado}'. "
+                    f"Prueba con otra categoría."
+                )
+            elif solicitud.motivo_no_atendida == "presupuesto_insuficiente":
+                messagebox.showinfo(
+                    "Presupuesto insuficiente",
+                    f"Ups {solicitud.cliente}, tu presupuesto de "
+                    f"S/ {solicitud.presupuesto_diario:.2f} se quedó corto "
+                    f"para la categoría '{solicitud.tipo_solicitado}'. El "
+                    f"vehículo más económico disponible cuesta "
+                    f"S/ {solicitud.tarifa_minima_tipo:.2f}/día. "
+                    f"¿Deseas ajustar tu presupuesto?"
+                )
 
-        self.lbl_tiempo.config(
-            text=f"Tiempo de ejecución: {tiempo * 1000:.4f} ms  ({tiempo * 1_000_000:.1f} µs)"
+    def actualizar_estadisticas(self):
+        disponibles = sum(1 for v in self.vehiculos if v.disponible)
+        ocupados = len(self.vehiculos) - disponibles
+
+        atendidas = sum(1 for s in self.solicitudes if s.estado == "Atendida")
+        no_atendidas = sum(1 for s in self.solicitudes if s.estado == "No atendida")
+
+        ingreso_promedio = self.ingreso_total / atendidas if atendidas > 0 else 0
+
+        for widget in self.frame_tarjetas.winfo_children():
+            widget.destroy()
+
+        self.crear_mini_tarjeta(
+            self.frame_tarjetas, "VEHÍCULOS DISPONIBLES", str(disponibles), self.COLOR_EXITO
         )
-        self.lbl_resumen_resultado.config(
-            text=(f"Procesadas {len(pendientes)} solicitudes  →  "
-                  f"{len(asignaciones)} atendidas, {len(no_atendidas)} no atendidas.")
+        self.crear_mini_tarjeta(
+            self.frame_tarjetas, "VEHÍCULOS OCUPADOS", str(ocupados), self.COLOR_ADVERTENCIA
+        )
+        self.crear_mini_tarjeta(
+            self.frame_tarjetas, "SOLICITUDES ATENDIDAS", str(atendidas), self.COLOR_ACENTO
+        )
+        self.crear_mini_tarjeta(
+            self.frame_tarjetas, "NO ATENDIDAS", str(no_atendidas), self.COLOR_PELIGRO
+        )
+        self.crear_mini_tarjeta(
+            self.frame_tarjetas, "INGRESO TOTAL", f"S/ {self.ingreso_total:.2f}", self.COLOR_HEADER
         )
 
-        self.refrescar_flota()
-        self.refrescar_solicitudes()
+        texto = f"""Ingreso promedio por cliente : S/ {ingreso_promedio:.2f}
+Total devuelto a clientes    : S/ {self.total_devuelto:.2f}
+Conflictos resueltos por ingreso : {self.conflictos_resueltos}
+Ingreso potencial perdido        : S/ {self.ingreso_perdido:.2f}
 
-    # ------------------------------------------------------------- RESET --
-    def restablecer_sistema(self):
-        confirmar = messagebox.askyesno(
-            "Restablecer sistema",
-            "Esto eliminará todas las solicitudes registradas y liberará la flota.\n¿Desea continuar?"
-        )
-        if not confirmar:
+Tiempo de ejecución: {self.tiempo:.8f} segundos"""
+
+        self.lbl_estadisticas.config(text=texto)
+
+    # =====================================================
+    # REINICIAR SISTEMA
+    # =====================================================
+
+    def reiniciar(self):
+        if not messagebox.askyesno("Confirmación", "¿Desea reiniciar el sistema?"):
             return
 
-        self.vehiculos = crear_flota_inicial()
-        self.solicitudes = []
+        self.vehiculos = cargar_flota()
+        self.solicitudes.clear()
 
-        self.entry_cliente.delete(0, "end")
+        self.tree_solicitudes.delete(*self.tree_solicitudes.get_children())
+        self.tree_asignaciones.delete(*self.tree_asignaciones.get_children())
+
+        self.entry_cliente.delete(0, tk.END)
+        self.entry_dias.delete(0, tk.END)
+        self.entry_presupuesto.delete(0, tk.END)
         self.combo_tipo.set("")
-        self.entry_monto.delete(0, "end")
 
-        self.tree_atendidas.delete(*self.tree_atendidas.get_children())
-        self.tree_no_atendidas.delete(*self.tree_no_atendidas.get_children())
-        self.lbl_tiempo.config(text="Tiempo de ejecución: --")
-        self.lbl_resumen_resultado.config(text="")
+        Solicitud.contador = 1
+        self.ingreso_total = 0
+        self.total_devuelto = 0
+        self.conflictos_resueltos = 0
+        self.ingreso_perdido = 0
+        self.tiempo = 0
 
         self.refrescar_flota()
-        self.refrescar_solicitudes()
-        messagebox.showinfo("Sistema restablecido", "La flota y las solicitudes fueron restablecidas.")
+        self.actualizar_estadisticas()
+
+        messagebox.showinfo("Sistema", "El sistema fue reiniciado correctamente.")

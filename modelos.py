@@ -1,25 +1,63 @@
-import itertools
+    
+"""
+Representa un vehículo de la flota.
+"""
 class Vehiculo:
-    """Representa una unidad de la flota de alquiler."""
 
-    def __init__(self, id_vehiculo, placa, tipo, modelo, tarifa_diaria):
-        self.id_vehiculo = id_vehiculo
+    def __init__(self, id, placa, tipo, modelo, tarifa):
+        self.id = id
         self.placa = placa
-        self.tipo = tipo                    # Económico / Sedán / SUV
+        self.tipo = tipo
         self.modelo = modelo
-        self.tarifa_diaria = tarifa_diaria
+        self.tarifa = tarifa  # Tarifa por día
         self.disponible = True
-    def __repr__(self):
-        return f"Vehiculo({self.placa}, {self.tipo}, S/{self.tarifa_diaria})"
+
 class Solicitud:
-    """solicitud de alquiler hecha por un cliente."""
-    _contador = itertools.count(1)
-    def __init__(self, cliente, tipo_solicitado, monto_ofrecido):
-        self.id_solicitud = next(Solicitud._contador)
+    """
+    Representa la solicitud de alquiler realizada por un cliente.
+    """
+    contador = 1
+
+    def __init__(self, cliente, tipo_solicitado, dias, presupuesto_diario):
+        self.id_solicitud = Solicitud.contador
+        Solicitud.contador += 1
+
         self.cliente = cliente
         self.tipo_solicitado = tipo_solicitado
-        self.monto_ofrecido = monto_ofrecido
-        self.estado = "Pendiente"           # Pendiente / Atendida / No atendida
+        self.dias = dias
+        self.presupuesto_diario = presupuesto_diario
+
+        self.estado = "Pendiente"
         self.vehiculo_asignado = None
-    def __repr__(self):
-        return f"Solicitud(#{self.id_solicitud}, {self.cliente}, {self.tipo_solicitado}, S/{self.monto_ofrecido})"
+
+        # Motivo cuando la solicitud queda "No atendida"
+        # Valores posibles: None, "sin_stock", "presupuesto_insuficiente"
+        self.motivo_no_atendida = None
+        # Tarifa mínima encontrada del tipo solicitado (aunque exceda presupuesto)
+        self.tarifa_minima_tipo = None
+
+    @property
+    def costo_total(self):
+        """
+        Retorna el costo total del alquiler.
+        """
+        if self.vehiculo_asignado:
+            return self.vehiculo_asignado.tarifa * self.dias
+        return 0
+
+    @property
+    def diferencia_diaria(self):
+        """
+        Excedente diario no gastado del presupuesto del cliente
+        respecto a la tarifa del vehículo asignado.
+        """
+        if self.vehiculo_asignado:
+            return self.presupuesto_diario - self.vehiculo_asignado.tarifa
+        return 0
+
+    @property
+    def diferencia_total(self):
+        """
+        Excedente total no gastado durante todos los días de alquiler.
+        """
+        return self.diferencia_diaria * self.dias

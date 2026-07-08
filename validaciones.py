@@ -1,18 +1,38 @@
-from flota import TIPOS_VEHICULO
+def validar_nombre(nombre):
+    """
+    Valida el nombre del cliente.
+    """
+    nombre = nombre.strip()
+    if not nombre:
+        return False, "Ingrese el nombre del cliente."
+    if any(caracter.isdigit() for caracter in nombre):
+        return False, "El nombre no debe contener números."
+    return True, ""
 
-def validar_solicitud(cliente, tipo, monto_texto):
-    cliente = cliente.strip()
-    if not cliente:
-        return False, "El nombre del cliente no puede estar vacío.", None
-    if any(ch.isdigit() for ch in cliente):
-        return False, "El nombre del cliente no debe contener números.", None
-    if tipo not in TIPOS_VEHICULO:
-        return False, "Debe seleccionar un tipo de vehículo válido.", None
-    monto_texto = monto_texto.strip().replace(",", ".")
+def validar_dias(dias):
+    """
+    Valida la cantidad de días de alquiler.
+    """
     try:
-        monto = float(monto_texto)
+        dias = int(dias)
+
+        if dias <= 0:
+            return False, "Los días de alquiler deben ser mayores a cero."
+
+        return True, ""
     except ValueError:
-        return False, "El monto ofrecido debe ser un número válido.", None
-    if monto <= 0:
-        return False, "El monto ofrecido debe ser mayor a 0.", None
-    return True, "", monto
+        return False, "Ingrese una cantidad válida de días."
+
+def validar_presupuesto(presupuesto):
+    """
+    Valida el presupuesto diario.
+    """
+    try:
+        presupuesto = float(presupuesto)
+
+        if presupuesto <= 0:
+            return False, "El presupuesto debe ser mayor a cero."
+
+        return True, ""
+    except ValueError:
+        return False, "Ingrese un presupuesto válido."
